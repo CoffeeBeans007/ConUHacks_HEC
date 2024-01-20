@@ -113,7 +113,7 @@ class Exchange:
             existing_stats[exchange]['Average Duration'] = pd.to_timedelta(average_duration, unit='s')
             existing_stats[exchange]['Duration StdDev'] = pd.to_timedelta(stddev_duration, unit='s')
 
-        # Check each open order to see if it exceeds 2 standard deviations of the average duration
+        #Check each open order to see if it exceeds 2 stdev of the average duration
         for open_order_id, open_timestamp in existing_stats[exchange]['Open Orders'].items():
             open_duration = timestamp - open_timestamp
             open_duration_seconds = open_duration.total_seconds()

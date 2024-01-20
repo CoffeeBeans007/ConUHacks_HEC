@@ -1,6 +1,6 @@
 import pandas as pd
-import numy as np
+import numpy as np
 
 
-if __name == '__main__':
+if __name__ == '__main__':
     print('This is the main file')

@@ -14,5 +14,6 @@ def main():
     page = PAGES[selection]
     page.app()
 
+
 if __name__ == "__main__":
     main()

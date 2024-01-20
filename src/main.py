@@ -1,6 +1,18 @@
-import pandas as pd
-import numpy as np
+import streamlit as st
+import pages.page1
+import pages.page2
 
+PAGES = {
+    "Page 1": pages.page1,
+    "Page 2": pages.page2
+}
 
-if __name__ == '__main__':
-    print('This is the main file')
+def main():
+    st.sidebar.title("Navigation")
+    selection = st.sidebar.radio("Aller à", list(PAGES.keys()))
+
+    page = PAGES[selection]
+    page.app()
+
+if __name__ == "__main__":
+    main()

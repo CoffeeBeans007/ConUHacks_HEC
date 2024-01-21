@@ -91,8 +91,8 @@ class Exchange:
             open_duration = timestamp - open_timestamp
             open_duration_seconds = open_duration.total_seconds()
            
-            threshold_seconds = 10 * existing_stats[exchange]['Duration StdDev'].total_seconds() + existing_stats[exchange]['Average Duration'].total_seconds()
-            if open_duration_seconds > threshold_seconds and open_order_id not in existing_stats[exchange]['Flagged Trades'] and new_row['TimeStamp'] > firsttimestamp+pd.Timedelta(2,unit='m'):
+            threshold_seconds = 1 * existing_stats[exchange]['Duration StdDev'].total_seconds() + existing_stats[exchange]['Average Duration'].total_seconds()
+            if open_duration_seconds > threshold_seconds and open_order_id not in existing_stats[exchange]['Flagged Trades'] and new_row['TimeStamp'] > firsttimestamp+pd.Timedelta(1,unit='m'):
                 existing_stats[exchange]['Flagged Trades'].add(open_order_id)  #Add to set
         return existing_stats
     def novelSymbol(self,existing_SymbolCount,new_row,firsttimestamp):
@@ -130,10 +130,9 @@ class Exchange:
                     existing_SymbolCount[exchange][new_row['Symbol']]['Threshold']=True
                     instance=True
 
-        if new_row['TimeStamp'] > firsttimestamp+pd.Timedelta(2,unit='m') and instance and existing_SymbolCount[exchange][new_row['Symbol']]['Threshold'] and new_row['MessageType']=='NewOrderRequest':
+        if new_row['TimeStamp'] > firsttimestamp+pd.Timedelta(1,unit='m') and instance and existing_SymbolCount[exchange][new_row['Symbol']]['Threshold'] and new_row['MessageType']=='NewOrderRequest':
 
             existing_SymbolCount[exchange]['Novelty'].add(new_row['Symbol'])
-            print(f'Novelty detected for symbol: '+new_row['Symbol']+' on exchange: '+exchange)
         
         
         return existing_SymbolCount
@@ -254,7 +253,35 @@ if __name__ == '__main__':
     }
 
     for index, row in exchangeOrders.iterrows():
+        row_flagged = 0
         exchange_stats=startExchange.update_exchanges(exchange_stats,row,pd.to_datetime(exchangeOrders['TimeStamp'][0]))
         existing_SymbolCount=startExchange.novelSymbol(existing_SymbolCount,row,pd.to_datetime(exchangeOrders['TimeStamp'][0])) 
-        frequency_stats=startExchange.price_frequency(frequency_stats,row,'1ms')
+        frequency_stats=startExchange.price_frequency(frequency_stats,row,'1s')
+        order_id = row['OrderID']
+        print(exchange_stats)
+        for exchange in exchange_stats:
+            if order_id in exchange_stats[exchange]['Flagged Trades']:
+                row_flagged = 1
+                print('Flagged trade detected for OrderID: '+order_id+' on exchange: '+exchange)
+                break  # No need to check further if already flagged
+
+        # Check if the current row's Symbol is flagged in any exchange
         
+        if not row_flagged:  # Only check if not already flagged by OrderID
+            symbol = row['Symbol']
+            for exchange in existing_SymbolCount:
+                if symbol in existing_SymbolCount[exchange]['Novelty']:
+                    row_flagged = 1
+                    print('Novelty detected for symbol: '+symbol+' on exchange: '+exchange)
+                    break  # No need to check further if already flagged
+    # Save exchange_stats
+with open('/path/to/save/exchange_stats.json', 'w') as file:
+    json.dump(exchange_stats, file, indent=4)
+
+# Save existing_SymbolCount
+with open('/path/to/save/existing_SymbolCount.json', 'w') as file:
+    json.dump(existing_SymbolCount, file, indent=4)
+
+# Save frequency_stats
+with open('/path/to/save/frequency_stats.json', 'w') as file:
+    json.dump(frequency_stats, file, indent=4)

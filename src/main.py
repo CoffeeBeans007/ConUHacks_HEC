@@ -76,12 +76,12 @@ class Exchange:
 
         return output_csv_file
         
-    def update_exchanges(self, existing_stats, new_row):
+    def update_exchanges(self, existing_stats, new_row,firsttimestamp):
         exchange = new_row['Exchange']
         order_id = new_row['OrderID']
         message_type = new_row['MessageType']
         timestamp = pd.to_datetime(new_row['TimeStamp'])
-
+        new_row['TimeStamp']=pd.to_datetime(new_row['TimeStamp'])
         
         if exchange not in existing_stats:
             existing_stats[exchange] = {
@@ -98,7 +98,7 @@ class Exchange:
         if message_type == 'NewOrderRequest':
             existing_stats[exchange]['Order Sent'] += 1
             existing_stats[exchange]['Open Orders'][order_id] = timestamp
-        elif message_type in ['CancelAcknowledged', 'Cancelled']:
+        elif message_type in ['Cancelled','Rejected']:
             if order_id in existing_stats[exchange]['Open Orders']:
                 start_timestamp = existing_stats[exchange]['Open Orders'][order_id]
                 duration = timestamp - start_timestamp
@@ -117,13 +117,53 @@ class Exchange:
         for open_order_id, open_timestamp in existing_stats[exchange]['Open Orders'].items():
             open_duration = timestamp - open_timestamp
             open_duration_seconds = open_duration.total_seconds()
-
-            threshold_seconds = 2 * existing_stats[exchange]['Duration StdDev'].total_seconds() + existing_stats[exchange]['Average Duration'].total_seconds()
-            if open_duration_seconds > threshold_seconds and open_order_id not in existing_stats[exchange]['Flagged Trades']:
+           
+            threshold_seconds = 10 * existing_stats[exchange]['Duration StdDev'].total_seconds() + existing_stats[exchange]['Average Duration'].total_seconds()
+            if open_duration_seconds > threshold_seconds and open_order_id not in existing_stats[exchange]['Flagged Trades'] and new_row['TimeStamp'] > firsttimestamp+pd.Timedelta(2,unit='m'):
                 existing_stats[exchange]['Flagged Trades'].add(open_order_id)  #Add to set
-               
         return existing_stats
-    
+    def novelSymbol(self,existing_SymbolCount,new_row,firsttimestamp):
+        '''
+        Function to check if the symbol has never been traded before
+        Novelty data check
+        
+        Args:
+            existing_SymbolCount: Dictionary containing the symbol count
+            new_row: new row of the dataset
+        Returns:
+            existing_SymbolCount: Updated dictionary containing the symbol count
+        '''
+        
+        exchange = new_row['Exchange']
+        new_row['TimeStamp']=pd.to_datetime(new_row['TimeStamp'])
+        instance=False
+        if new_row['Symbol'] not in existing_SymbolCount[exchange]:
+            existing_SymbolCount[exchange][new_row['Symbol']]={}
+            existing_SymbolCount[exchange][new_row['Symbol']]['HighestTimeDiff']=0
+            existing_SymbolCount[exchange][new_row['Symbol']]['Count']=1
+            existing_SymbolCount[exchange][new_row['Symbol']]['LastTradeTime']=new_row['TimeStampEpoch']
+
+            existing_SymbolCount[exchange][new_row['Symbol']]['Threshold']=False
+        
+        elif new_row['MessageType']=='NewOrderRequest':
+            time_diff = (new_row['TimeStampEpoch'] - existing_SymbolCount[exchange][new_row['Symbol']]['LastTradeTime'])
+            existing_SymbolCount[exchange][new_row['Symbol']]['LastTradeTime']=new_row['TimeStampEpoch']
+
+            existing_SymbolCount[exchange][new_row['Symbol']]['Count']+=1
+            if time_diff>existing_SymbolCount[exchange][new_row['Symbol']]['HighestTimeDiff']:
+                existing_SymbolCount[exchange][new_row['Symbol']]['HighestTimeDiff']=time_diff
+                if existing_SymbolCount[exchange][new_row['Symbol']]['Count']>20:
+                    existing_SymbolCount[exchange][new_row['Symbol']]['Threshold']=True
+                    instance=True
+
+        if new_row['TimeStamp'] > firsttimestamp+pd.Timedelta(0.01,unit='m') and instance and existing_SymbolCount[exchange][new_row['Symbol']]['Threshold'] and new_row['MessageType']=='NewOrderRequest':
+
+            existing_SymbolCount[exchange]['Novelty'].add(new_row['Symbol'])
+            print('Novelty detected for symbol: '+new_row['Symbol']+' on exchange: '+exchange)
+        
+        
+        return existing_SymbolCount
+
 
 
 
@@ -170,10 +210,24 @@ if __name__ == '__main__':
                 'Flagged Trades': set()  #Using a set to prevent duplicates
             }
     }
-    for index, row in exchangeOrders.head(10).iterrows():
-        exchange_stats=startExchange.update_exchanges(exchange_stats,row)
-        print(exchange_stats['Exchange_1']['Flagged Trades'])
-    
+  
+    existing_SymbolCount={
+        'Exchange_1': {
+                'Novelty': set(),
+        },
+        'Exchange_2': {
+                'Novelty': set(),
+               
+        },
+        'Exchange_3': {
+                'Novelty': set(),
+                
+                
+        }
+    }
+    for index, row in exchangeOrders.iterrows():
+        exchange_stats=startExchange.update_exchanges(exchange_stats,row,pd.to_datetime(exchangeOrders['TimeStamp'][0]))
+        existing_SymbolCount=startExchange.novelSymbol(existing_SymbolCount,row,pd.to_datetime(exchangeOrders['TimeStamp'][0])) 
 
         
 

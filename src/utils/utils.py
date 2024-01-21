@@ -1,5 +1,4 @@
 import pandas as pd
-import webbrowser
 import datetime
 import time
 import json
@@ -7,8 +6,11 @@ import csv
 import os
 from typing import List, Callable
 import streamlit as st
+import plotly.graph_objects as go
 
-from src.utils.file_manager import FileManagerDynamic
+
+# from src.utils.file_manager import FileManagerDynamic
+from utils.file_manager import FileManagerDynamic
 
 
 def concat_json_to_csv(json_files: List[str], output_directory: str) -> str:
@@ -80,6 +82,89 @@ def filter_dataframe_by_tickers(df: pd.DataFrame, tickers: list[str]) -> pd.Data
     return df[df['Symbol'].isin(tickers)]
 
 
+# Initialisation globale de la figure
+message_type_colors = {
+    'NewOrderRequest': 'blue',
+    'NewOrderAcknowledged': 'green',
+    'Cancelled': 'red',
+    'CancelRequest': 'yellow',
+    'CancelAcknowledged': 'purple',
+    'Trade': 'orange',
+    'Rejected': 'pink'
+}
+
+fig = go.Figure()
+fig.update_layout(
+    scene=dict(
+        xaxis=dict(title='Time (seconds from start)', autorange="reversed"),
+        yaxis_title='Symbol',
+        zaxis_title='MessageType',
+        camera=dict(
+            eye=dict(x=2, y=2, z=2)  # Ajustez ces valeurs pour changer la vue initiale
+        )
+    ),
+    title="MessageType over Time for each Symbol",
+    legend_title="MessageType",
+    autosize=True,  # Permet au graphique de s'ajuster à la taille du conteneur
+    height=600     # Ajustez la hauteur du graphique
+)
+
+
+
+# Dictionary for mapping MessageType to symbols
+message_type_symbols = {
+    'NewOrderRequest': 'circle',
+    'NewOrderAcknowledged': 'square',
+    'Cancelled': 'diamond',
+    'CancelRequest': 'cross',
+    'CancelAcknowledged': 'x',
+    'Trade': 'triangle-up',
+    'Rejected': 'star'
+}
+
+# Placeholder for the graph in Streamlit
+graph_placeholder = st.empty()
+
+
+def processing_function(row: pd.Series, start_time: pd.Timestamp):
+    global fig, graph_placeholder, message_type_symbols, message_type_colors
+    time_diff = (row['TimeStamp'] - start_time).total_seconds()
+
+    # Ajout de la trace pour la ligne actuelle à la figure existante
+    fig.add_trace(go.Scatter3d(
+        x=[time_diff], y=[row['Symbol']], z=[row['MessageType']],
+        mode='markers',
+        marker=dict(
+            size=5,
+            color=message_type_colors[row['MessageType']],
+            symbol=message_type_symbols[row['MessageType']]
+        ),
+        name=row['MessageType']
+    ))
+
+    # Mise à jour du graphique dans le placeholder Streamlit
+    graph_placeholder.plotly_chart(fig, use_container_width=True)
+
+
+def display_dataframe_rows_over_time(df: pd.DataFrame, duration_minutes: int = 4):
+    if df.empty:
+        st.write("The DataFrame is empty.")
+        return
+
+    total_rows = len(df)
+    total_seconds = duration_minutes * 60
+    sleep_time = total_seconds / total_rows
+    start_time = df['TimeStamp'].min()
+
+    # Initialisation du placeholder pour le graphique dans Streamlit
+    graph_placeholder = st.empty()
+
+    for _, row in df.iterrows():
+        processing_function(row, start_time)
+        time.sleep(sleep_time)
+
+
+
 def graph_dataframe_rows_over_time(df: pd.DataFrame, processing_function: Callable, duration_minutes: int = 4):
     """
     Processes each row of a DataFrame over a given period and allows calling a custom function at each step.
@@ -108,32 +193,6 @@ def graph_dataframe_rows_over_time(df: pd.DataFrame, processing_function: Callab
         processing_function(df, current_time, next_time, graph_placeholder)  # Call the custom processing function
         time.sleep(sleep_time)
         current_time = next_time
-
-
-def display_dataframe_rows_over_time(df: pd.DataFrame, processing_function: Callable, duration_minutes: int = 4):
-    """
-    Processes each row of a DataFrame over a given period and allows calling a custom function at each step.
-
-    Args:
-    df (pd.DataFrame): DataFrame to process.
-    processing_function: Custom function to call at each step.
-    duration_minutes (int): Total duration for processing in minutes.
-    """
-    if df.empty:
-        print("The DataFrame is empty.")
-        return
-
-    total_rows = len(df)
-    total_seconds = duration_minutes * 60
-    sleep_time = total_seconds / total_rows
-
-    for _, row in df.iterrows():
-        processing_function(row)
-        time.sleep(sleep_time)
-
-
-def processing_function(row: pd.Series):
-    print(row['MessageType'])
 
 
 def process_data_per_second(df: pd.DataFrame, current_time: datetime.datetime):
@@ -173,13 +232,13 @@ if __name__ == "__main__":
     #
     # print(order_id[order_id == 1])
     #
-    n_random_tickers = find_n_random_tickers(df, 3)
+    n_random_tickers = find_n_random_tickers(df, 1)
     # print(f"3 random tickers: \n{n_random_tickers}")
     #
     filtered_df = filter_dataframe_by_tickers(df, n_random_tickers)
     # print(f"First 10 rows of the filtered dataframe: \n{filtered_df.head(10)}")
 
-    display_dataframe_rows_over_time(filtered_df, process_data_per_second)
+    display_dataframe_rows_over_time(filtered_df, processing_function)
 
 
 

@@ -27,6 +27,28 @@ class FilterData:
     def filter_by_exchange(self, exchange: str) -> pd.DataFrame:
         return self.data[self.data['Exchange'] == exchange]
 
+    def filter_by_message_type_sequence(self, sequences: list[list[str]]) -> pd.DataFrame:
+        # Créer un DataFrame vide pour stocker les résultats
+        filtered_df = pd.DataFrame()
+
+        for sequence in sequences:
+            # Filtrer les données pour chaque séquence
+            for i in range(len(sequence) - 1):
+                current_type = sequence[i]
+                next_type = sequence[i + 1]
+
+                # Sélectionner les lignes où le MessageType actuel est suivi par le MessageType suivant pour le même OrderID
+                sequence_df = self.data[
+                    (self.data['MessageType'] == current_type) &
+                    (self.data['OrderID'].isin(
+                        self.data[(self.data['MessageType'] == next_type)]['OrderID']
+                    ))
+                    ]
+                filtered_df = pd.concat([filtered_df, sequence_df])
+
+        # Éliminer les doublons éventuels
+        return filtered_df.drop_duplicates()
+
 
 if __name__ == '__main__':
     print('This is filter_data.py')

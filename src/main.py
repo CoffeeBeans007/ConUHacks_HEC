@@ -4,8 +4,96 @@ st.set_page_config(layout="wide")
 from utils.filter_data import FilterData
 from utils.find_patterns import FindPatterns
 from utils.file_manager import FileManagerDynamic
+from FishFish import Exchange
 from utils.utils import display_data_3d_over_time, processing_function
 
+
+def main_fish(row: pd.Series):
+    # Read the data
+    fms = FileManagerDynamic(ceiling_directory='30_TradingClub')
+    exchangeOrders = fms.load_data(folder_name='data', file_name='exchange_concat.csv')
+    startExchange = Exchange(exchangeOrders)
+    # Initialize main dictionaries for every stats that we want to output
+
+    exchange_stats = {
+        'Exchange_1': {
+            'Order Sent': 0,
+            'Trade Passed': 0,
+            'Order Cancelled': 0,
+            'Open Orders': {},
+            'Closed Durations': [],
+            'Average Duration': pd.Timedelta(0),
+            'Duration StdDev': pd.Timedelta(0),
+            'Flagged Trades': set()  # Using a set to prevent duplicates and faster lookup
+        },
+        'Exchange_2': {
+            'Order Sent': 0,
+            'Trade Passed': 0,
+            'Order Cancelled': 0,
+            'Open Orders': {},
+            'Closed Durations': [],
+            'Average Duration': pd.Timedelta(0),
+            'Duration StdDev': pd.Timedelta(0),
+            'Flagged Trades': set()  # Using a set to prevent duplicates and faster lookup
+        },
+        'Exchange_3': {
+            'Order Sent': 0,
+            'Trade Passed': 0,
+            'Order Cancelled': 0,
+            'Open Orders': {},
+            'Closed Durations': [],
+            'Average Duration': pd.Timedelta(0),
+            'Duration StdDev': pd.Timedelta(0),
+            'Flagged Trades': set()  # Using a set to prevent duplicates and faster lookup
+        }
+    }
+    # Structure for novelty stats (adding a new key for symbol in the function)
+    existing_SymbolCount = {
+        'Exchange_1': {
+            'Novelty': set(),
+        },
+        'Exchange_2': {
+            'Novelty': set(),
+
+        },
+        'Exchange_3': {
+            'Novelty': set(),
+
+        }
+    }
+
+    # Structure for frequency stats (adding a new key for each timestamp as well as each order type in the function)
+    frequency_stats = {
+        'Exchange_1': {
+            'frequency': {}
+        },
+        'Exchange_2': {
+            'frequency': {}
+
+        },
+        'Exchange_3': {
+            'frequency': {}
+        }
+    }
+
+    row_flagged = False
+    exchange_stats = startExchange.update_exchanges(exchange_stats, row,
+                                                    pd.to_datetime(exchangeOrders['TimeStamp'][0]))
+    existing_SymbolCount = startExchange.novelSymbol(existing_SymbolCount, row,
+                                                     pd.to_datetime(exchangeOrders['TimeStamp'][0]))
+    frequency_stats = startExchange.price_frequency(frequency_stats, row, '1s')
+    print(exchange_stats)
+    if row["OrderID"] in exchange_stats[row["Exchange"]]['Flagged Trades']:
+        row["RowFlagged"] = 1
+
+    # Check if the current row's Symbol is flagged in any exchange
+
+    if not row_flagged:  # Only check if not already flagged by OrderID
+        symbol = row['Symbol']
+        for exchange in existing_SymbolCount:
+            if symbol in existing_SymbolCount[exchange]['Novelty']:
+                row["RowFlagged"] = 1
+                break  # No need to check further if already flagged
 
 
 def get_number_input(filter_name, default_n=1):
@@ -21,6 +109,7 @@ def configure_filters(df):
 
     order_id_to_pattern_dict = FindPatterns(df).map_order_id_to_pattern()
     df['PatternID'] = df['OrderID'].map(order_id_to_pattern_dict)
+    # apply main_fish by row to create a new column
 
     selected_exchanges = st.multiselect("Select Exchange(s):", df['Exchange'].unique(), default=df['Exchange'].unique())
     df_exchanges_filtered = FilterData(df).filter_by_exchanges(selected_exchanges)
@@ -53,7 +142,7 @@ def configure_filters(df):
     if st.button("Apply Filter"):
         st.session_state['filter_applied'] = True
         st.session_state['filtered_df'] = df_filtered
-        st.write(df_filtered)
+        # st.write(df_filtered)
 
 
 def main():
@@ -70,6 +159,7 @@ def main():
     configure_filters(df)
 
     if st.session_state['filter_applied']:
+
         display_data_3d_over_time(st.session_state['filtered_df'])
 
 

@@ -146,22 +146,55 @@ def processing_function(row: pd.Series, start_time: pd.Timestamp):
     graph_placeholder.plotly_chart(fig, use_container_width=True)
 
 
-def display_dataframe_rows_over_time(df: pd.DataFrame, duration_minutes: int = 4):
-    if df.empty:
-        st.write("The DataFrame is empty.")
-        return
+def display_data_3d_over_time(df):
+    start_time = pd.Timestamp(year=2024, month=1, day=5, hour=9, minute=28, second=0)  # 9h28
+    end_time = start_time + datetime.timedelta(minutes=4)  # 4 minutes plus tard (9h32)
+    current_time = start_time
 
-    total_rows = len(df)
-    total_seconds = duration_minutes * 60
-    sleep_time = total_seconds / total_rows
-    start_time = df['TimeStamp'].min()
+    exchange_mapping = {}
+    pattern_mapping = {}
+    symbols_count = {}
 
-    # Initialisation du placeholder pour le graphique dans Streamlit
+    fig = go.Figure(layout=dict(scene=dict(xaxis=dict(title='Time (seconds from 9:28)'),
+                                           yaxis=dict(title='Exchange'),
+                                           zaxis=dict(title='Pattern'))))
+    fig.update_layout(title="Event Visualization over Time")
+
     graph_placeholder = st.empty()
 
-    for _, row in df.iterrows():
-        processing_function(row, start_time)
-        time.sleep(sleep_time)
+    while current_time <= end_time:
+        next_time = current_time + datetime.timedelta(seconds=1)
+        filtered_df = df.query("TimeStamp >= @current_time and TimeStamp < @next_time")
+
+        if not filtered_df.empty:
+            for _, row in filtered_df.iterrows():
+                exchange = row['Exchange']
+                pattern_id = row['PatternID']
+                symbol = row['Symbol']
+
+                if exchange not in exchange_mapping:
+                    exchange_mapping[exchange] = len(exchange_mapping)
+
+                if pattern_id not in pattern_mapping:
+                    pattern_mapping[pattern_id] = len(pattern_mapping)
+
+                if symbol not in symbols_count:
+                    symbols_count[symbol] = 1
+                else:
+                    symbols_count[symbol] += 1
+
+                x_value = (current_time - start_time).total_seconds()
+                y_value = exchange_mapping[exchange]
+                z_value = pattern_mapping[pattern_id]
+
+                fig.add_trace(go.Scatter3d(x=[x_value], y=[y_value], z=[z_value],
+                                           mode='markers',
+                                           marker=dict(size=3),
+                                           name=f"Pattern {pattern_id}"))
+
+    graph_placeholder.plotly_chart(fig, use_container_width=True)
+    time.sleep(1)
+    current_time = next_time
 
 
 

@@ -1,5 +1,4 @@
 import pandas as pd
-from collections import defaultdict
 
 
 class FindPatterns:
@@ -22,19 +21,27 @@ class FindPatterns:
         grouped = self._group_by_order_id()
         pattern_counts = self._find_patterns(grouped)
         pattern_mapping = self._map_patterns(pattern_counts)
-
-        # Create a dictionary with 'pattern_x' as keys and sequence as values
         pattern_full_counts = {pattern_mapping[sequence]: count for sequence, count in pattern_counts.items()}
         return pattern_full_counts, pattern_mapping
 
     def replace_pattern_keys(self, pattern_full_counts, pattern_mapping):
-        # Reverse the pattern_mapping dictionary
         reverse_mapping = {v: k for k, v in pattern_mapping.items()}
-        # Replace 'pattern_x' keys with the actual sequence
         patterns_with_arrows = {reverse_mapping[k]: v for k, v in pattern_full_counts.items()}
-        # sort by value
         patterns_sorted = {k: v for k, v in sorted(patterns_with_arrows.items(), key=lambda item: item[1], reverse=True)}
         return patterns_sorted
+
+    def map_order_id_to_pattern(self):
+        grouped = self._group_by_order_id()
+        _, pattern_mapping = self.find_and_count_patterns()
+
+        # Créer un dictionnaire pour mapper chaque séquence à son pattern correspondant
+        sequence_to_pattern = {sequence: pattern_mapping.get(sequence, 'unknown_pattern') for sequence in grouped['Sequence'].unique()}
+
+        # Mapper chaque OrderID à son pattern correspondant en utilisant le dictionnaire
+        order_id_to_pattern = {row['OrderID']: sequence_to_pattern[row['Sequence']] for index, row in grouped.iterrows()}
+
+        return order_id_to_pattern
+
 
 
 if __name__ == '__main__':
@@ -52,5 +59,7 @@ if __name__ == '__main__':
     print(pattern_mapping)
     patterns = fp.replace_pattern_keys(pattern_full_counts=pattern_full_counts, pattern_mapping=pattern_mapping)
     print(patterns)
+    mapping = fp.map_order_id_to_pattern()
+    print(mapping.head())
 
 

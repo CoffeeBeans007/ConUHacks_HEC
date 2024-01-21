@@ -1,9 +1,12 @@
 import pandas as pd
+# from find_patterns import FindPatterns
+from utils.find_patterns import FindPatterns
 
 
 class FilterData:
     def __init__(self, data: pd.DataFrame):
         self.data = self._verify_data(data)
+        self.find_patterns = FindPatterns(self.data)
 
     def _verify_data(self, data: pd.DataFrame) -> pd.DataFrame:
         data['TimeStamp'] = pd.to_datetime(data['TimeStamp'], errors='coerce')
@@ -24,29 +27,24 @@ class FilterData:
         top_tickers = order_counts.nlargest(n).index.tolist()
         return self.data[self.data['Symbol'].isin(top_tickers)]
 
-    def filter_by_exchange(self, exchange: str) -> pd.DataFrame:
-        return self.data[self.data['Exchange'] == exchange]
+    def filter_by_exchanges(self, exchanges: list) -> pd.DataFrame:
+        return self.data[self.data['Exchange'].isin(exchanges)]
 
-    def filter_by_message_type_sequence(self, sequences: list[list[str]]) -> pd.DataFrame:
-        # Créer un DataFrame vide pour stocker les résultats
-        filtered_df = pd.DataFrame()
+    def filter_by_message_type_sequence(self, selected_sequences: list[list[str]]) -> pd.DataFrame:
+        # Get the grouped DataFrame with OrderID and MessageType sequences
+        grouped_sequences = self.find_patterns._group_by_order_id()
 
-        for sequence in sequences:
-            # Filtrer les données pour chaque séquence
-            for i in range(len(sequence) - 1):
-                current_type = sequence[i]
-                next_type = sequence[i + 1]
+        # Convert the list of sequences into a set for faster lookup
+        sequences_set = {' -> '.join(seq) for seq in selected_sequences}
 
-                # Sélectionner les lignes où le MessageType actuel est suivi par le MessageType suivant pour le même OrderID
-                sequence_df = self.data[
-                    (self.data['MessageType'] == current_type) &
-                    (self.data['OrderID'].isin(
-                        self.data[(self.data['MessageType'] == next_type)]['OrderID']
-                    ))
-                    ]
-                filtered_df = pd.concat([filtered_df, sequence_df])
+        # Find all OrderIDs that have a sequence contained in our set of selected sequences
+        matching_order_ids = grouped_sequences[
+            grouped_sequences['Sequence'].isin(sequences_set)
+        ]['OrderID'].unique()
 
-        # Éliminer les doublons éventuels
+        # Filter the DataFrame by the OrderIDs from matching sequences
+        filtered_df = self.data[self.data['OrderID'].isin(matching_order_ids)]
+
         return filtered_df.drop_duplicates()
 
 
@@ -60,4 +58,9 @@ if __name__ == '__main__':
     print(df.head())
     fd = FilterData(df)
     print(fd.data.head())
+    sequences_to_filter = [['Trade', 'Trade', 'Trade', 'Trade', 'Trade', 'Trade', 'Trade', 'Trade', 'Trade', 'Trade', 'Trade', 'Trade', 'Trade', 'Trade', 'Trade', 'Trade', 'Trade', 'Trade', 'Trade', 'Trade', 'Trade', 'Trade']
+    ]
 
+    # Filter by the selected sequences
+    order_id_filtered = fd.filter_by_message_type_sequence(selected_sequences=sequences_to_filter)
+    print(order_id_filtered)

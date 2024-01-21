@@ -189,6 +189,8 @@ if __name__ == '__main__':
     exchangeOrders=pd.read_csv('/Users/jean-christophegaudreau/Desktop/Coding/Python/ConUHackss/output.csv')
     startExchange=Exchange(exchangeOrders)
     #Initialize main dictionaries for every stats that we want to output
+    
+    
     exchange_stats = {
         'Exchange_1': {
                 'Order Sent': 0,
@@ -221,7 +223,7 @@ if __name__ == '__main__':
                 'Flagged Trades': set()  #Using a set to prevent duplicates and faster lookup
             }
     }
-  
+    #Structure for novelty stats (adding a new key for symbol in the function)
     existing_SymbolCount={
         'Exchange_1': {
                 'Novelty': set(),
@@ -236,6 +238,8 @@ if __name__ == '__main__':
                 
         }
     }
+    
+    #Structure for frequency stats (adding a new key for each timestamp as well as each order type in the function)
     frequency_stats={
         'Exchange_1': {
             'frequency':{}
@@ -253,5 +257,4 @@ if __name__ == '__main__':
         exchange_stats=startExchange.update_exchanges(exchange_stats,row,pd.to_datetime(exchangeOrders['TimeStamp'][0]))
         existing_SymbolCount=startExchange.novelSymbol(existing_SymbolCount,row,pd.to_datetime(exchangeOrders['TimeStamp'][0])) 
         frequency_stats=startExchange.price_frequency(frequency_stats,row,'1ms')
-        print(frequency_stats)
-
+        

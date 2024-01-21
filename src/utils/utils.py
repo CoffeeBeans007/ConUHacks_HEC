@@ -7,6 +7,8 @@ import os
 from typing import List, Callable
 import streamlit as st
 import plotly.graph_objects as go
+import random
+import colorsys
 
 
 # from src.utils.file_manager import FileManagerDynamic
@@ -151,14 +153,15 @@ def display_data_3d_over_time(df):
     end_time = start_time + datetime.timedelta(minutes=4)  # 4 minutes plus tard (9h32)
     current_time = start_time
 
-    exchange_mapping = {}
-    pattern_mapping = {}
+    exchange_mapping = {exchange: i for i, exchange in enumerate(df['Exchange'].unique(), 1)}
+    pattern_mapping = {pattern: i for i, pattern in enumerate(df['PatternID'].unique())}
     symbols_count = {}
+    pattern_colors = {}
 
     fig = go.Figure(layout=dict(scene=dict(xaxis=dict(title='Time (seconds from 9:28)'),
-                                           yaxis=dict(title='Exchange'),
-                                           zaxis=dict(title='Pattern'))))
-    fig.update_layout(title="Event Visualization over Time")
+                                           yaxis=dict(title='Exchange', tickvals=list(exchange_mapping.values()), ticktext=list(exchange_mapping.keys())),
+                                           zaxis=dict(title='Pattern', tickvals=list(pattern_mapping.values()), ticktext=list(pattern_mapping.keys())))))
+    fig.update_layout(title="Event Visualization over Time", showlegend=False)
 
     graph_placeholder = st.empty()
 
@@ -172,11 +175,8 @@ def display_data_3d_over_time(df):
                 pattern_id = row['PatternID']
                 symbol = row['Symbol']
 
-                if exchange not in exchange_mapping:
-                    exchange_mapping[exchange] = len(exchange_mapping)
-
-                if pattern_id not in pattern_mapping:
-                    pattern_mapping[pattern_id] = len(pattern_mapping)
+                if pattern_id not in pattern_colors:
+                    pattern_colors[pattern_id] = '#%02X%02X%02X' % tuple(int(random.random()*255) for _ in range(3))
 
                 if symbol not in symbols_count:
                     symbols_count[symbol] = 1
@@ -189,12 +189,14 @@ def display_data_3d_over_time(df):
 
                 fig.add_trace(go.Scatter3d(x=[x_value], y=[y_value], z=[z_value],
                                            mode='markers',
-                                           marker=dict(size=3),
-                                           name=f"Pattern {pattern_id}"))
+                                           marker=dict(size=3, color=pattern_colors[pattern_id]),
+                                           name=f"Pattern {pattern_id}" if f"Pattern {pattern_id}" not in [trace.name for trace in fig.data] else "",
+                                           hovertemplate=f"Pattern {pattern_id}<br>Time: {x_value}<br>Exchange: {exchange}<br>Symbol: {symbol}<extra></extra>"))
+        graph_placeholder.plotly_chart(fig, use_container_width=True)
+        time.sleep(1)
+        current_time = next_time
 
-    graph_placeholder.plotly_chart(fig, use_container_width=True)
-    time.sleep(1)
-    current_time = next_time
+
 
 
 

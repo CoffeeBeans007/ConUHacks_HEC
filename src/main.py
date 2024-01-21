@@ -35,7 +35,11 @@ def configure_filters(df):
         pattern_full_counts, pattern_mapping = find_patterns.find_and_count_patterns()
         patterns_sorted = find_patterns.replace_pattern_keys(pattern_full_counts, pattern_mapping)
 
-        st.write("Pattern Mapping and Counts:", pd.DataFrame(list(patterns_sorted.items()), columns=['Sequence', 'Pattern Count']))
+        df_to_show = pd.DataFrame(list(patterns_sorted.items()), columns=['Sequence', 'Pattern Count'])
+        df_to_show['PatternID'] = df_to_show['Sequence'].map(pattern_mapping)
+
+        st.write(df_to_show)
+
         selected_patterns_keys = st.multiselect("Select Patterns:", list(patterns_sorted.keys()))
         selected_sequences = [key.split(' -> ') for key in selected_patterns_keys]
         df_filtered = FilterData(df_symbols_filtered).filter_by_message_type_sequence(selected_sequences)

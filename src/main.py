@@ -4,7 +4,7 @@ st.set_page_config(layout="wide")
 from utils.filter_data import FilterData
 from utils.find_patterns import FindPatterns
 from utils.file_manager import FileManagerDynamic
-from FishFish import Exchange
+from src.utils.FishFish import Exchange
 from utils.utils import display_data_3d_over_time
 
 

@@ -38,45 +38,17 @@ class Exchange:
         self.BigDict=dataset.to_dict(orient='index')
         
         
-    def concat_json_to_csv(json_files, output_directory):
-        # Vérifie si le répertoire de sortie existe, sinon le crée
-        if not os.path.exists(output_directory):
-            os.makedirs(output_directory)
-
-        # Initialise une liste vide pour stocker les données JSON concaténées
-        concatenated_data = []
-
-        # Parcourt la liste des fichiers JSON
-        for json_file in json_files:
-            with open(json_file, 'r') as file:
-                # Charge le fichier JSON
-                data = json.load(file)
-
-                # Assurez-vous que les données sont sous forme de liste de dictionnaires
-                if isinstance(data, list) and all(isinstance(item, dict) for item in data):
-                    concatenated_data.extend(data)
-                else:
-                    raise ValueError(f"Le fichier {json_file} ne contient pas une liste de dictionnaires JSON valides.")
-        
-        # Sort the concatenated data by 'timestamp' column
-        concatenated_data.sort(key=lambda x: (x['TimeStampEpoch']))
-        # Crée le chemin complet pour le fichier de sortie CSV
-        output_csv_file = os.path.join(output_directory, 'output.csv')
-
-        # Écrit les données concaténées dans le fichier CSV
-        with open(output_csv_file, 'w', newline='') as csv_file:
-            writer = csv.DictWriter(csv_file, fieldnames=concatenated_data[0].keys())
-
-            # Écrit les en-têtes de colonnes
-            writer.writeheader()
-
-            # Écrit les données
-            for row in concatenated_data:
-                writer.writerow(row)
-
-        return output_csv_file
         
     def update_exchanges(self, existing_stats, new_row,firsttimestamp):
+        '''
+        Function to update the exchange stats and fish out trades that exceed 10 stdev of the average duration
+        
+        Args:
+            existing_stats: Dictionary containing the exchange stats
+            new_row: new row of the dataset
+        Returns:
+            existing_stats: Updated dictionary containing the exchange stats
+        '''
         exchange = new_row['Exchange']
         order_id = new_row['OrderID']
         message_type = new_row['MessageType']
@@ -94,10 +66,11 @@ class Exchange:
                 'Duration StdDev': pd.Timedelta(0),
                 'Flagged Trades': set()#Sets are faster lol
             }
-
+        #Initilize the trade
         if message_type == 'NewOrderRequest':
             existing_stats[exchange]['Order Sent'] += 1
             existing_stats[exchange]['Open Orders'][order_id] = timestamp
+        #Close the trade an update stats
         elif message_type in ['Cancelled','Rejected']:
             if order_id in existing_stats[exchange]['Open Orders']:
                 start_timestamp = existing_stats[exchange]['Open Orders'][order_id]
@@ -113,7 +86,7 @@ class Exchange:
             existing_stats[exchange]['Average Duration'] = pd.to_timedelta(average_duration, unit='s')
             existing_stats[exchange]['Duration StdDev'] = pd.to_timedelta(stddev_duration, unit='s')
 
-        #Check each open order to see if it exceeds 2 stdev of the average duration
+        #Check each open order to see if it exceeds 10 stdev of the average duration
         for open_order_id, open_timestamp in existing_stats[exchange]['Open Orders'].items():
             open_duration = timestamp - open_timestamp
             open_duration_seconds = open_duration.total_seconds()
@@ -138,6 +111,7 @@ class Exchange:
         new_row['TimeStamp']=pd.to_datetime(new_row['TimeStamp'])
         instance=False
         if new_row['Symbol'] not in existing_SymbolCount[exchange]:
+            #Initialize the symbol
             existing_SymbolCount[exchange][new_row['Symbol']]={}
             existing_SymbolCount[exchange][new_row['Symbol']]['HighestTimeDiff']=0
             existing_SymbolCount[exchange][new_row['Symbol']]['Count']=1
@@ -156,13 +130,47 @@ class Exchange:
                     existing_SymbolCount[exchange][new_row['Symbol']]['Threshold']=True
                     instance=True
 
-        if new_row['TimeStamp'] > firsttimestamp+pd.Timedelta(0.01,unit='m') and instance and existing_SymbolCount[exchange][new_row['Symbol']]['Threshold'] and new_row['MessageType']=='NewOrderRequest':
+        if new_row['TimeStamp'] > firsttimestamp+pd.Timedelta(2,unit='m') and instance and existing_SymbolCount[exchange][new_row['Symbol']]['Threshold'] and new_row['MessageType']=='NewOrderRequest':
 
             existing_SymbolCount[exchange]['Novelty'].add(new_row['Symbol'])
-            print('Novelty detected for symbol: '+new_row['Symbol']+' on exchange: '+exchange)
+            print(f'Novelty detected for symbol: '+new_row['Symbol']+' on exchange: '+exchange)
         
         
         return existing_SymbolCount
+    def price_frequency(self,frequency_stats,new_row,granularity,interval_start='2024-01-05 09:28:000000',interval_end='2024-01-05 09:32:00.000000'):
+        '''
+        Function to check the frequency of orders based on order type
+        Args:
+            frequency_stats: Dictionary containing the frequency stats
+            new_row: new row of the dataset
+            order_type: Type of order (NewOrderRequest,NewOrderAcknowledge,Trade,CancelRequest,CancelAcknowledged,Cancelled)
+            granularity: Time interval to check frequency
+        Returns:
+            frequency_stats: Updated dictionary containing the frequency stats
+        '''
+        
+       
+        exchange = new_row['Exchange']
+        new_row_time = pd.to_datetime(new_row['TimeStamp'])
+        message_type = new_row['MessageType']
+
+
+
+        if exchange not in frequency_stats:
+            frequency_stats[exchange] = {'frequency': {}}
+
+        if interval_start <= new_row_time <= interval_end:
+            time_key = new_row_time.floor(granularity)
+            if time_key not in frequency_stats[exchange]['frequency']:
+                frequency_stats[exchange]['frequency'][time_key] = {'OrderCounts': {'NewOrderRequest':0, 'NewOrderAcknowledged':0, 'Cancelled':0, 'CancelRequest':0,
+    'Trade':0, 'Rejected':0}}
+
+            if message_type not in frequency_stats[exchange]['frequency'][time_key]['OrderCounts']:
+                frequency_stats[exchange]['frequency'][time_key]['OrderCounts'][message_type] = 0
+
+            frequency_stats[exchange]['frequency'][time_key]['OrderCounts'][message_type] += 1
+
+        return frequency_stats
 
 
 
@@ -176,8 +184,10 @@ if __name__ == '__main__':
     #exchange2=pd.read_json('/Users/jean-christophegaudreau/Downloads/National Bank Of Canada Data For ConUHacks VIII/Exchange_2.json')
     #exchange3=pd.read_json('/Users/jean-christophegaudreau/Downloads/National Bank Of Canada Data For ConUHacks VIII/Exchange_3.json')
     #create_csv = Exchange.concat_json_to_csv(['/Users/jean-christophegaudreau/Downloads/National Bank Of Canada Data For ConUHacks VIII/Exchange_1.json','/Users/jean-christophegaudreau/Downloads/National Bank Of Canada Data For ConUHacks VIII/Exchange_2.json','/Users/jean-christophegaudreau/Downloads/National Bank Of Canada Data For ConUHacks VIII/Exchange_3.json'], '/Users/jean-christophegaudreau/Desktop/Coding/Python/ConUHackss')
+    
     exchangeOrders=pd.read_csv('/Users/jean-christophegaudreau/Desktop/Coding/Python/ConUHackss/output.csv')
     startExchange=Exchange(exchangeOrders)
+    #Initialize main dictionaries for every stats that we want to output
     exchange_stats = {
         'Exchange_1': {
                 'Order Sent': 0,
@@ -187,7 +197,7 @@ if __name__ == '__main__':
                 'Closed Durations': [],
                 'Average Duration': pd.Timedelta(0),
                 'Duration StdDev': pd.Timedelta(0),
-                'Flagged Trades': set()  #Using a set to prevent duplicates
+                'Flagged Trades': set()  #Using a set to prevent duplicates and faster lookup
             },
         'Exchange_2': {
                 'Order Sent': 0,
@@ -197,7 +207,7 @@ if __name__ == '__main__':
                 'Closed Durations': [],
                 'Average Duration': pd.Timedelta(0),
                 'Duration StdDev': pd.Timedelta(0),
-                'Flagged Trades': set()  #Using a set to prevent duplicates
+                'Flagged Trades': set()  #Using a set to prevent duplicates and faster lookup
             },
         'Exchange_3': {
                 'Order Sent': 0,
@@ -207,7 +217,7 @@ if __name__ == '__main__':
                 'Closed Durations': [],
                 'Average Duration': pd.Timedelta(0),
                 'Duration StdDev': pd.Timedelta(0),
-                'Flagged Trades': set()  #Using a set to prevent duplicates
+                'Flagged Trades': set()  #Using a set to prevent duplicates and faster lookup
             }
     }
   
@@ -225,12 +235,22 @@ if __name__ == '__main__':
                 
         }
     }
+    frequency_stats={
+        'Exchange_1': {
+            'frequency':{}
+        },
+        'Exchange_2': {
+            'frequency':{}
+
+        },
+        'Exchange_3': {
+            'frequency':{}
+        }
+    }
+
     for index, row in exchangeOrders.iterrows():
         exchange_stats=startExchange.update_exchanges(exchange_stats,row,pd.to_datetime(exchangeOrders['TimeStamp'][0]))
         existing_SymbolCount=startExchange.novelSymbol(existing_SymbolCount,row,pd.to_datetime(exchangeOrders['TimeStamp'][0])) 
-
-        
-
-
+        frequency_stats=startExchange.price_frequency(frequency_stats,row,'1ms')
 
 

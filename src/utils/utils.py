@@ -84,69 +84,6 @@ def filter_dataframe_by_tickers(df: pd.DataFrame, tickers: list[str]) -> pd.Data
     return df[df['Symbol'].isin(tickers)]
 
 
-# Initialisation globale de la figure
-message_type_colors = {
-    'NewOrderRequest': 'blue',
-    'NewOrderAcknowledged': 'green',
-    'Cancelled': 'red',
-    'CancelRequest': 'yellow',
-    'CancelAcknowledged': 'purple',
-    'Trade': 'orange',
-    'Rejected': 'pink'
-}
-
-fig = go.Figure()
-fig.update_layout(
-    scene=dict(
-        xaxis=dict(title='Time (seconds from start)', autorange="reversed"),
-        yaxis_title='Symbol',
-        zaxis_title='MessageType',
-        camera=dict(
-            eye=dict(x=2, y=2, z=2)  # Ajustez ces valeurs pour changer la vue initiale
-        )
-    ),
-    title="MessageType over Time for each Symbol",
-    legend_title="MessageType",
-    autosize=True,  # Permet au graphique de s'ajuster à la taille du conteneur
-    height=600     # Ajustez la hauteur du graphique
-)
-
-
-
-# Dictionary for mapping MessageType to symbols
-message_type_symbols = {
-    'NewOrderRequest': 'circle',
-    'NewOrderAcknowledged': 'square',
-    'Cancelled': 'diamond',
-    'CancelRequest': 'cross',
-    'CancelAcknowledged': 'x',
-    'Trade': 'triangle-up',
-    'Rejected': 'star'
-}
-
-# Placeholder for the graph in Streamlit
-graph_placeholder = st.empty()
-
-
-def processing_function(row: pd.Series, start_time: pd.Timestamp):
-    global fig, graph_placeholder, message_type_symbols, message_type_colors
-    time_diff = (row['TimeStamp'] - start_time).total_seconds()
-
-    # Ajout de la trace pour la ligne actuelle à la figure existante
-    fig.add_trace(go.Scatter3d(
-        x=[time_diff], y=[row['Symbol']], z=[row['MessageType']],
-        mode='markers',
-        marker=dict(
-            size=5,
-            color=message_type_colors[row['MessageType']],
-            symbol=message_type_symbols[row['MessageType']]
-        ),
-        name=row['MessageType']
-    ))
-
-    # Mise à jour du graphique dans le placeholder Streamlit
-    graph_placeholder.plotly_chart(fig, use_container_width=True)
-
 
 def display_data_3d_over_time(df):
     start_time = pd.Timestamp(year=2024, month=1, day=5, hour=9, minute=28, second=0)  # 9h28
@@ -273,7 +210,6 @@ if __name__ == "__main__":
     filtered_df = filter_dataframe_by_tickers(df, n_random_tickers)
     # print(f"First 10 rows of the filtered dataframe: \n{filtered_df.head(10)}")
 
-    display_dataframe_rows_over_time(filtered_df, processing_function)
 
 
 

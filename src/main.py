@@ -137,7 +137,7 @@ class Exchange:
         
         
         return existing_SymbolCount
-    def price_frequency(self,frequency_stats,new_row,granularity,interval_start='2024-01-05 09:28:000000',interval_end='2024-01-05 09:32:00.000000'):
+    def price_frequency(self,frequency_stats,new_row,granularity):
         '''
         Function to check the frequency of orders based on order type
         Args:
@@ -154,7 +154,8 @@ class Exchange:
         new_row_time = pd.to_datetime(new_row['TimeStamp'])
         message_type = new_row['MessageType']
 
-
+        interval_start = pd.to_datetime('2024-01-05 09:28:000000')
+        interval_end = pd.to_datetime('2024-01-05 09:32:00.000000')
 
         if exchange not in frequency_stats:
             frequency_stats[exchange] = {'frequency': {}}
@@ -252,5 +253,5 @@ if __name__ == '__main__':
         exchange_stats=startExchange.update_exchanges(exchange_stats,row,pd.to_datetime(exchangeOrders['TimeStamp'][0]))
         existing_SymbolCount=startExchange.novelSymbol(existing_SymbolCount,row,pd.to_datetime(exchangeOrders['TimeStamp'][0])) 
         frequency_stats=startExchange.price_frequency(frequency_stats,row,'1ms')
-
+        print(frequency_stats)
 

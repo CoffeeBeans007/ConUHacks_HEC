@@ -5,7 +5,7 @@ from utils.filter_data import FilterData
 from utils.find_patterns import FindPatterns
 from utils.file_manager import FileManagerDynamic
 from FishFish import Exchange
-from utils.utils import display_data_3d_over_time, processing_function
+from utils.utils import display_data_3d_over_time
 
 
 def main_fish(row: pd.Series):

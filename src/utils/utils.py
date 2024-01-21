@@ -210,7 +210,6 @@ if __name__ == "__main__":
     filtered_df = filter_dataframe_by_tickers(df, n_random_tickers)
     # print(f"First 10 rows of the filtered dataframe: \n{filtered_df.head(10)}")
 
-    display_dataframe_rows_over_time(filtered_df, processing_function)
 
 
 
